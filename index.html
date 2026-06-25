@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<meta name="theme-color" content="#0F6E56" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Paisa Together" />
+<title>Paisa Together</title>
+<link rel="manifest" href="manifest.json" />
+
+<!-- =====================================================
+     FIREBASE CONFIG — REPLACE THESE 6 VALUES
+     Go to console.firebase.google.com → your project
+     → Project settings → Your apps → SDK setup
+     ===================================================== -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey:            "AIzaSyA2fEEu8t-e0KBGyoebI0dI0kmV0gOi59Y",
+    authDomain:        "budgetgoals-3f5de.firebaseapp.com",
+    projectId:         "budgetgoals-3f5de",
+    storageBucket:     "budgetgoals-3f5de.firebasestorage.app",
+    messagingSenderId: "728968270680",
+    appId:             "1:728968270680:web:36e3547269a0d5d68acb2d"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+  window._db = db;
+  window._fs = { doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove };
+  window._firebaseReady = true;
+  document.dispatchEvent(new Event("firebase-ready"));
+</script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --green:   #1D9E75;
+    --green-d: #0F6E56;
+    --green-l: #E1F5EE;
+    --coral:   #D85A30;
+    --coral-l: #FAECE7;
+    --navy:    #1a1f2e;
+    --surface: #f7f8fa;
+    --card:    #ffffff;
+    --border:  rgba(0,0,0,0.08);
+    --text:    #1a1f2e;
+    --muted:   #6b7280;
+    --faint:   #9ca3af;
+    --radius:  14px;
+    --radius-sm: 9px;
+    --shadow:  0 1px 3px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface: #111318;
+      --card:    #1c2030;
+      --border:  rgba(255,255,255,0.08);
+      --text:    #f0f2f5;
+      --muted:   #9ca3af;
+      --faint:   #6b7280;
+      --green-l: #0a3326;
+      --coral-l: #3a1a10;
+    }
+  }
+
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---- LAYOUT ---- */
+  #app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+  .screen { display: none; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .screen.active { display: flex; flex-direction: column; }
+  .scroll-body { flex: 1; overflow-y: auto; padding: 0 16px 100px; -webkit-overflow-scrolling: touch; }
+
+  /* ---- TOP BAR ---- */
+  .topbar {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    padding-top: calc(12px + env(safe-area-inset-top));
+  }
+  .topbar-title { font-size: 17px; font-weight: 600; color: var(--text); }
+  .topbar-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .sync-badge {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 12px; color: var(--muted);
+    background: var(--surface); border-radius: 20px; padding: 4px 10px;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dot-green { background: var(--green); animation: pulse-dot 2s infinite; }
+  .dot-amber { background: #f59e0b; }
+  .dot-red   { background: #ef4444; }
+  @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  /* ---- BOTTOM NAV ---- */
+  .bottom-nav {
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-shrink: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .nav-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 10px 0; border: none; background: none; color: var(--faint);
+    font-size: 11px; cursor: pointer; transition: color .15s;
+  }
+  .nav-btn.active { color: var(--green); }
+  .nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---- JOIN SCREEN ---- */
+  .join-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 20px; gap: 24px; }
+  .join-logo { text-align: center; }
+  .join-logo .icon { font-size: 52px; margin-bottom: 8px; }
+  .join-logo h1 { font-size: 28px; font-weight: 700; color: var(--text); }
+  .join-logo p { font-size: 14px; color: var(--muted); margin-top: 4px; }
+  .join-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; width: 100%; max-width: 380px; }
+  .seg { display: flex; background: var(--surface); border-radius: var(--radius-sm); padding: 3px; margin-bottom: 18px; }
+  .seg-btn { flex: 1; padding: 8px; border: none; background: none; border-radius: calc(var(--radius-sm) - 2px); font-size: 14px; font-weight: 500; color: var(--muted); cursor: pointer; transition: all .15s; }
+  .seg-btn.active { background: var(--card); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+
+  /* ---- FORM ELEMENTS ---- */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 5px; }
+  .field input, .field select {
+    width: 100%; padding: 12px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 16px; /* 16px prevents iOS zoom */
+    background: var(--surface); color: var(--text);
+    outline: none; transition: border-color .15s;
+    -webkit-appearance: none;
+  }
+  .field input:focus, .field select:focus { border-color: var(--green); }
+  .field select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+  .field .hint { font-size: 12px; color: var(--faint); margin-top: 5px; }
+
+  .btn { width: 100%; padding: 14px; border: none; border-radius: var(--radius-sm); font-size: 16px; font-weight: 600; cursor: pointer; transition: opacity .15s, transform .1s; }
+  .btn:active { transform: scale(.98); }
+  .btn-primary { background: var(--green); color: #fff; }
+  .btn-primary:disabled { opacity: .5; pointer-events: none; }
+  .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); }
+  .btn-danger { background: var(--coral-l); color: var(--coral); }
+
+  .err { font-size: 13px; color: var(--coral); text-align: center; margin-top: 8px; min-height: 18px; }
+
+  /* ---- BUDGET RING ---- */
+  .ring-section { background: var(--card); margin: 16px 0; border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 16px 16px; }
+  .ring-outer { display: flex; align-items: center; gap: 20px; }
+  .ring-svg { flex-shrink: 0; }
+  .ring-info { flex: 1; }
+  .ring-remaining { font-size: 26px; font-weight: 700; color: var(--text); line-height: 1.1; }
+  .ring-label { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .ring-used { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .ring-used span { font-weight: 600; color: var(--coral); }
+
+  /* ---- STAT GRID ---- */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 12px; }
+  .stat-card { background: var(--card); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 14px; }
+  .stat-lbl { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .stat-val { font-size: 20px; font-weight: 700; margin-top: 3px; color: var(--text); }
+  .stat-sub { font-size: 11px; color: var(--faint); margin-top: 2px; }
+  .c-green { color: var(--green-d); }
+  .c-coral { color: var(--coral); }
+
+  /* ---- SPLIT BAR ---- */
+  .split-section { background: var(--card); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 14px; margin-bottom: 12px; }
+  .split-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .split-name { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .split-amt { font-size: 14px; font-weight: 600; }
+  .bar-track { height: 6px; background: var(--surface); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width .5s ease; }
+
+  /* ---- ADD EXPENSE ---- */
+  .add-section { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; margin: 16px 0; }
+  .add-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .span2 { grid-column: span 2; }
+  .add-grid .field { margin-bottom: 0; }
+
+  /* ---- EXPENSE LIST ---- */
+  .section-title { font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin: 20px 0 10px; }
+  .exp-item { background: var(--card); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 12px 14px; display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .exp-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  .exp-body { flex: 1; min-width: 0; }
+  .exp-desc { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .exp-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .exp-right { text-align: right; flex-shrink: 0; }
+  .exp-amt { font-size: 15px; font-weight: 700; color: var(--coral); }
+  .exp-del { display: block; margin-top: 4px; font-size: 11px; color: var(--faint); background: none; border: none; cursor: pointer; padding: 0; }
+  .exp-del:active { color: var(--coral); }
+  .avatar { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; vertical-align: middle; margin-right: 3px; flex-shrink: 0; }
+  .av-me  { background: var(--green-l); color: var(--green-d); }
+  .av-her { background: var(--coral-l); color: var(--coral); }
+
+  .empty-state { text-align: center; padding: 48px 20px; color: var(--faint); }
+  .empty-state .big { font-size: 48px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; }
+
+  /* ---- SETTINGS ---- */
+  .settings-section { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; margin: 16px 0; }
+  .settings-section h3 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+  .code-box { display: flex; align-items: center; gap: 10px; background: var(--surface); border-radius: var(--radius-sm); padding: 12px 14px; font-family: monospace; font-size: 20px; font-weight: 700; letter-spacing: .1em; color: var(--green-d); cursor: pointer; user-select: none; }
+  .code-box small { font-size: 11px; color: var(--muted); font-family: sans-serif; font-weight: 400; letter-spacing: 0; display: block; margin-top: 2px; }
+  .divider { height: 1px; background: var(--border); margin: 14px 0; }
+  .info-row { display: flex; justify-content: space-between; font-size: 14px; padding: 6px 0; }
+  .info-row .lbl { color: var(--muted); }
+
+  /* ---- TOAST ---- */
+  #toast {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--navy); color: #fff; padding: 10px 20px; border-radius: 24px;
+    font-size: 14px; font-weight: 500; opacity: 0; transition: opacity .25s, transform .25s;
+    pointer-events: none; z-index: 999; white-space: nowrap; max-width: calc(100vw - 40px);
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---- LOADING ---- */
+  #loading { position: fixed; inset: 0; background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 9999; transition: opacity .3s; }
+  #loading .spin { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading p { font-size: 14px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div style="font-size:40px">💚</div>
+  <div class="spin"></div>
+  <p>Loading Paisa Together…</p>
+</div>
+
+<div id="app">
+
+  <!-- ==================== JOIN SCREEN ==================== -->
+  <div id="screen-join" class="screen active">
+    <div class="join-wrap">
+      <div class="join-logo">
+        <div class="icon">💚</div>
+        <h1>Paisa Together</h1>
+        <p>Track money together, stress less</p>
+      </div>
+
+      <div class="join-card">
+        <div class="seg">
+          <button class="seg-btn active" onclick="joinTab('create')">Create Room</button>
+          <button class="seg-btn"        onclick="joinTab('join')">Join Room</button>
+        </div>
+
+        <div id="pane-create">
+          <div class="field">
+            <label>Your name</label>
+            <input type="text" id="c-name" placeholder="e.g. Aryan" maxlength="20" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label>Combined monthly budget (₹)</label>
+            <input type="number" id="c-budget" placeholder="e.g. 50000" inputmode="numeric" />
+          </div>
+          <button class="btn btn-primary" onclick="createRoom()">Create shared room →</button>
+        </div>
+
+        <div id="pane-join" style="display:none">
+          <div class="field">
+            <label>Your name</label>
+            <input type="text" id="j-name" placeholder="e.g. Priya" maxlength="20" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label>Room code (from partner)</label>
+            <input type="text" id="j-code" placeholder="e.g. ROSE-4821" maxlength="9"
+              style="font-family:monospace; letter-spacing:.05em; text-transform:uppercase"
+              oninput="this.value=this.value.toUpperCase()" autocomplete="off" inputmode="text" />
+            <div class="hint">Ask your partner to share the code from Settings</div>
+          </div>
+          <button class="btn btn-primary" onclick="joinRoom()">Join room →</button>
+        </div>
+
+        <div class="err" id="join-err"></div>
+      </div>
+
+      <p style="font-size:12px; color:var(--faint); text-align:center; padding: 0 16px;">
+        Both of you install this page → Add to Home Screen in Chrome → open and connect with the same room code
+      </p>
+    </div>
+  </div>
+
+  <!-- ==================== MAIN SCREEN ==================== -->
+  <div id="screen-main" class="screen">
+
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" id="tb-title">Paisa Together</div>
+        <div class="topbar-sub" id="tb-sub">—</div>
+      </div>
+      <div class="sync-badge">
+        <div class="dot dot-amber" id="sync-dot"></div>
+        <span id="sync-txt">Connecting…</span>
+      </div>
+    </div>
+
+    <!-- HOME TAB -->
+    <div id="tab-home" class="scroll-body">
+      <div class="ring-section">
+        <div class="ring-outer">
+          <svg class="ring-svg" width="110" height="110" viewBox="0 0 110 110">
+            <circle cx="55" cy="55" r="46" fill="none" stroke="var(--surface)" stroke-width="12"/>
+            <circle id="ring-track" cx="55" cy="55" r="46" fill="none" stroke="#1D9E75"
+              stroke-width="12" stroke-dasharray="289" stroke-dashoffset="289"
+              stroke-linecap="round" transform="rotate(-90 55 55)"
+              style="transition: stroke-dashoffset .6s ease, stroke .4s ease"/>
+          </svg>
+          <div class="ring-info">
+            <div class="ring-remaining" id="ring-amt">₹0</div>
+            <div class="ring-label" id="ring-lbl">remaining this month</div>
+            <div class="ring-used">Spent: <span id="ring-spent">₹0</span> of <span id="ring-budget" style="color:var(--muted); font-weight:600">₹0</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-lbl">Your spending</div>
+          <div class="stat-val c-green" id="s-me">₹0</div>
+          <div class="stat-sub" id="s-me-name">You</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-lbl">Partner's spending</div>
+          <div class="stat-val c-coral" id="s-her">₹0</div>
+          <div class="stat-sub" id="s-her-name">Partner</div>
+        </div>
+      </div>
+
+      <div class="split-section" id="split-section" style="display:none">
+        <div class="split-row" id="split-row-me">
+          <div class="split-name"><span class="avatar av-me" id="sp-me-init">A</span><span id="sp-me-name">You</span></div>
+          <div class="split-amt c-green" id="sp-me-pct">0%</div>
+        </div>
+        <div class="bar-track" style="margin-bottom:10px">
+          <div class="bar-fill" id="bar-me" style="background:var(--green); width:0%"></div>
+        </div>
+        <div class="split-row" id="split-row-her">
+          <div class="split-name"><span class="avatar av-her" id="sp-her-init">P</span><span id="sp-her-name">Partner</span></div>
+          <div class="split-amt c-coral" id="sp-her-pct">0%</div>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill" id="bar-her" style="background:var(--coral); width:0%"></div>
+        </div>
+      </div>
+
+      <div class="section-title">Recent expenses</div>
+      <div id="home-list">
+        <div class="empty-state"><div class="big">🧾</div><p>No expenses yet.<br>Add your first one!</p></div>
+      </div>
+    </div>
+
+    <!-- ADD TAB -->
+    <div id="tab-add" class="scroll-body" style="display:none">
+      <div class="add-section">
+        <div class="add-grid">
+          <div class="field span2">
+            <label>Description</label>
+            <input type="text" id="a-desc" placeholder="e.g. Dinner at Barbeque Nation" maxlength="50" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label>Amount (₹)</label>
+            <input type="number" id="a-amt" placeholder="0" inputmode="numeric" min="1" />
+          </div>
+          <div class="field">
+            <label>Category</label>
+            <select id="a-cat">
+              <option>🍕 Food</option>
+              <option>🛒 Groceries</option>
+              <option>🚗 Transport</option>
+              <option>☕ Cafe</option>
+              <option>💊 Health</option>
+              <option>🎬 Entertainment</option>
+              <option>🛍️ Shopping</option>
+              <option>🏠 Home</option>
+              <option>📱 Bills</option>
+              <option>✈️ Travel</option>
+              <option>🎁 Gift</option>
+              <option>📦 Other</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="add-btn" onclick="addExpense()" style="margin-top:6px">+ Add Expense</button>
+        <div class="err" id="add-err"></div>
+      </div>
+
+      <div class="section-title">All expenses</div>
+      <div id="add-list">
+        <div class="empty-state"><div class="big">✨</div><p>Nothing yet — add your first expense!</p></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS TAB -->
+    <div id="tab-settings" class="scroll-body" style="display:none">
+      <div class="settings-section">
+        <h3>Room Code</h3>
+        <div class="code-box" onclick="copyCode()">
+          <div>
+            <div id="code-display">—</div>
+            <small>Tap to copy · share with partner</small>
+          </div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Update Budget</h3>
+        <div class="field">
+          <label>Combined monthly budget (₹)</label>
+          <input type="number" id="s-budget" placeholder="e.g. 50000" inputmode="numeric" />
+        </div>
+        <button class="btn btn-primary" onclick="saveBudget()">Save Budget</button>
+      </div>
+
+      <div class="settings-section">
+        <h3>Room Info</h3>
+        <div class="info-row"><span class="lbl">Your name</span><span id="info-me">—</span></div>
+        <div class="divider"></div>
+        <div class="info-row"><span class="lbl">Partner</span><span id="info-her">Waiting to join…</span></div>
+        <div class="divider"></div>
+        <div class="info-row"><span class="lbl">Total expenses</span><span id="info-count">0</span></div>
+      </div>
+
+      <div style="padding: 0 0 16px;">
+        <button class="btn btn-danger" onclick="leaveRoom()">Leave Room</button>
+      </div>
+    </div>
+
+    <!-- BOTTOM NAV -->
+    <nav class="bottom-nav">
+      <button class="nav-btn active" id="nav-home" onclick="goTab('home')">
+        <svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1z"/><path d="M9 21V12h6v9"/></svg>
+        Home
+      </button>
+      <button class="nav-btn" id="nav-add" onclick="goTab('add')">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        Add
+      </button>
+      <button class="nav-btn" id="nav-settings" onclick="goTab('settings')">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        Settings
+      </button>
+    </nav>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────
+let S = {
+  myName: '', roomCode: '', budget: 0,
+  expenses: [], members: {},
+  unsub: null,
+};
+
+const CAT_BG = {
+  '🍕 Food':'#fff3ee','🛒 Groceries':'#edf7ed','🚗 Transport':'#e8f0fb',
+  '☕ Cafe':'#fdf6ec','💊 Health':'#fce8f0','🎬 Entertainment':'#eeecfd',
+  '🛍️ Shopping':'#fce8f0','🏠 Home':'#e1f5ee','📱 Bills':'#e8f0fb',
+  '✈️ Travel':'#eeecfd','🎁 Gift':'#fff3ee','📦 Other':'#f1efe8',
+};
+
+// ─── HELPERS ─────────────────────────────────────────────────────────
+const fmt = n => '₹' + Math.round(n).toLocaleString('en-IN');
+const el  = id => document.getElementById(id);
+const words = ['ROSE','MOON','STAR','LOVE','FIRE','JADE','GOLD','LEAF','WAVE','MIST','LAKE','CALM','HOPE','DUSK','DAWN'];
+const genCode = () => words[Math.floor(Math.random()*words.length)] + '-' + (Math.floor(Math.random()*9000)+1000);
+
+function toast(msg, dur=2200) {
+  const t = el('toast'); t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+function setSyncStatus(status) {
+  const dot = el('sync-dot'), txt = el('sync-txt');
+  dot.className = 'dot';
+  if (status === 'live')        { dot.classList.add('dot-green'); txt.textContent = 'Live'; }
+  else if (status === 'saving') { dot.classList.add('dot-amber'); txt.textContent = 'Saving…'; }
+  else                          { dot.classList.add('dot-red');   txt.textContent = 'Offline'; }
+}
+
+// ─── FIREBASE ────────────────────────────────────────────────────────
+function getDB() { return window._db; }
+function getFS() { return window._fs; }
+
+function roomRef(code) {
+  return getFS().doc(getDB(), 'rooms', code);
+}
+
+async function createRoom() {
+  const name = el('c-name').value.trim();
+  const budget = parseInt(el('c-budget').value) || 0;
+  if (!name)   { el('join-err').textContent = 'Enter your name'; return; }
+  if (!budget) { el('join-err').textContent = 'Enter a budget'; return; }
+  if (!window._firebaseReady) { el('join-err').textContent = 'Firebase not configured yet — see instructions'; return; }
+
+  el('join-err').textContent = '';
+  const btn = document.querySelector('#pane-create .btn');
+  btn.disabled = true; btn.textContent = 'Creating…';
+
+  const code = genCode();
+  try {
+    await getFS().setDoc(roomRef(code), {
+      budget, expenses: [], members: { [name]: Date.now() }, createdAt: Date.now()
+    });
+    S.myName = name; S.roomCode = code; S.budget = budget;
+    S.members = { [name]: Date.now() }; S.expenses = [];
+    localStorage.setItem('pt-session', JSON.stringify({ myName: name, roomCode: code }));
+    enterApp();
+  } catch(e) {
+    el('join-err').textContent = 'Error: ' + e.message;
+    btn.disabled = false; btn.textContent = 'Create shared room →';
+  }
+}
+
+async function joinRoom() {
+  const name = el('j-name').value.trim();
+  const code = el('j-code').value.trim().toUpperCase();
+  if (!name) { el('join-err').textContent = 'Enter your name'; return; }
+  if (!code) { el('join-err').textContent = 'Enter room code'; return; }
+  if (!window._firebaseReady) { el('join-err').textContent = 'Firebase not configured yet — see instructions'; return; }
+
+  el('join-err').textContent = '';
+  const btn = document.querySelector('#pane-join .btn');
+  btn.disabled = true; btn.textContent = 'Joining…';
+
+  try {
+    const snap = await getFS().getDoc(roomRef(code));
+    if (!snap.exists()) { el('join-err').textContent = 'Room not found. Check the code.'; btn.disabled=false; btn.textContent='Join room →'; return; }
+    const data = snap.data();
+    S.myName = name; S.roomCode = code;
+    S.budget = data.budget; S.expenses = data.expenses || [];
+    S.members = data.members || {};
+    S.members[name] = Date.now();
+    await getFS().updateDoc(roomRef(code), { [`members.${name}`]: Date.now() });
+    localStorage.setItem('pt-session', JSON.stringify({ myName: name, roomCode: code }));
+    enterApp();
+  } catch(e) {
+    el('join-err').textContent = 'Error: ' + e.message;
+    btn.disabled = false; btn.textContent = 'Join room →';
+  }
+}
+
+function subscribeRoom() {
+  if (S.unsub) S.unsub();
+  S.unsub = getFS().onSnapshot(roomRef(S.roomCode), snap => {
+    if (!snap.exists()) return;
+    const d = snap.data();
+    S.budget = d.budget;
+    S.expenses = d.expenses || [];
+    S.members = d.members || {};
+    setSyncStatus('live');
+    updateUI();
+    renderLists();
+  }, () => setSyncStatus('offline'));
+}
+
+async function addExpense() {
+  const desc = el('a-desc').value.trim();
+  const amt  = parseFloat(el('a-amt').value);
+  const cat  = el('a-cat').value;
+  if (!desc) { el('add-err').textContent = 'Add a description'; return; }
+  if (!amt || amt <= 0) { el('add-err').textContent = 'Enter a valid amount'; return; }
+  el('add-err').textContent = '';
+
+  const btn = el('add-btn'); btn.disabled = true; btn.textContent = 'Adding…';
+  setSyncStatus('saving');
+  const exp = { id: Date.now(), desc, amount: amt, cat, who: S.myName, time: Date.now() };
+  try {
+    await getFS().updateDoc(roomRef(S.roomCode), { expenses: getFS().arrayUnion(exp) });
+    el('a-desc').value = ''; el('a-amt').value = '';
+    toast('Expense added ✓');
+  } catch(e) { toast('Error: ' + e.message); setSyncStatus('offline'); }
+  btn.disabled = false; btn.textContent = '+ Add Expense';
+}
+
+async function deleteExpense(id) {
+  const exp = S.expenses.find(e => e.id === id);
+  if (!exp || exp.who !== S.myName) return;
+  setSyncStatus('saving');
+  try {
+    await getFS().updateDoc(roomRef(S.roomCode), { expenses: getFS().arrayRemove(exp) });
+    toast('Deleted');
+  } catch(e) { toast('Error: ' + e.message); setSyncStatus('offline'); }
+}
+
+async function saveBudget() {
+  const b = parseInt(el('s-budget').value) || 0;
+  if (!b) { toast('Enter a valid budget'); return; }
+  setSyncStatus('saving');
+  try {
+    await getFS().updateDoc(roomRef(S.roomCode), { budget: b });
+    toast('Budget updated ✓');
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function leaveRoom() {
+  if (S.unsub) S.unsub();
+  S.myName = ''; S.roomCode = ''; S.budget = 0;
+  S.expenses = []; S.members = {}; S.unsub = null;
+  localStorage.removeItem('pt-session');
+  el('screen-main').classList.remove('active');
+  el('screen-join').classList.add('active');
+}
+
+// ─── UI ──────────────────────────────────────────────────────────────
+function enterApp() {
+  el('screen-join').classList.remove('active');
+  el('screen-main').classList.add('active');
+  el('tb-title').textContent = 'Paisa Together';
+  el('tb-sub').textContent = 'Room · ' + S.roomCode;
+  el('code-display').textContent = S.roomCode;
+  el('info-me').textContent = S.myName;
+  el('s-me-name').textContent = S.myName;
+  el('sp-me-name').textContent = S.myName;
+  el('sp-me-init').textContent = S.myName[0].toUpperCase();
+  subscribeRoom();
+  updateUI(); renderLists();
+}
+
+function updateUI() {
+  const total = S.expenses.reduce((s,e) => s + e.amount, 0);
+  const rem   = S.budget - total;
+  const pct   = S.budget ? Math.min(total / S.budget, 1) : 0;
+  const over  = total > S.budget;
+  const circ  = 2 * Math.PI * 46; // r=46
+
+  el('ring-amt').textContent = fmt(Math.abs(rem));
+  el('ring-amt').style.color = over ? 'var(--coral)' : 'var(--text)';
+  el('ring-lbl').textContent = over ? '⚠️ over budget!' : 'remaining this month';
+  el('ring-spent').textContent  = fmt(total);
+  el('ring-budget').textContent = fmt(S.budget);
+
+  const track = el('ring-track');
+  track.setAttribute('stroke', over ? '#D85A30' : '#1D9E75');
+  track.setAttribute('stroke-dashoffset', circ * (1 - pct));
+
+  // per-member
+  const me = S.myName;
+  const meSum  = S.expenses.filter(e=>e.who===me).reduce((s,e)=>s+e.amount,0);
+  const others = [...new Set(S.expenses.filter(e=>e.who!==me).map(e=>e.who))];
+  const herName = others[0] || 'Partner';
+  const herSum  = S.expenses.filter(e=>e.who!==me).reduce((s,e)=>s+e.amount,0);
+
+  el('s-me').textContent  = fmt(meSum);
+  el('s-her').textContent = fmt(herSum);
+  el('s-her-name').textContent = herName;
+  el('info-her').textContent = herName !== 'Partner' ? herName : 'Waiting to join…';
+  el('sp-her-name').textContent = herName;
+  el('sp-her-init').textContent = herName[0].toUpperCase();
+
+  if (total > 0) {
+    const mePct  = Math.round(meSum  / total * 100);
+    const herPct = Math.round(herSum / total * 100);
+    el('split-section').style.display = '';
+    el('sp-me-pct').textContent  = mePct + '%';
+    el('sp-her-pct').textContent = herPct + '%';
+    el('bar-me').style.width  = mePct + '%';
+    el('bar-her').style.width = herPct + '%';
+  } else {
+    el('split-section').style.display = 'none';
+  }
+
+  el('s-budget').value = S.budget;
+  el('info-count').textContent = S.expenses.length;
+}
+
+function expHTML(e, canDelete) {
+  const bg = CAT_BG[e.cat] || '#f1efe8';
+  const emoji = e.cat.split(' ')[0];
+  const isMe  = e.who === S.myName;
+  const dt = new Date(e.time);
+  const dateStr = dt.toLocaleDateString('en-IN',{day:'numeric',month:'short'}) + ' · ' + dt.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+  return `
+  <div class="exp-item">
+    <div class="exp-icon" style="background:${bg}">${emoji}</div>
+    <div class="exp-body">
+      <div class="exp-desc">${e.desc}</div>
+      <div class="exp-meta">
+        <span class="avatar ${isMe?'av-me':'av-her'}">${e.who[0].toUpperCase()}</span>
+        ${e.who} · ${e.cat.split(' ').slice(1).join(' ')} · ${dateStr}
+      </div>
+    </div>
+    <div class="exp-right">
+      <div class="exp-amt">−${fmt(e.amount)}</div>
+      ${canDelete && isMe ? `<button class="exp-del" onclick="deleteExpense(${e.id})">Delete</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderLists() {
+  const sorted = [...S.expenses].sort((a,b) => b.time - a.time);
+  const recent = sorted.slice(0, 5);
+
+  el('home-list').innerHTML = recent.length
+    ? recent.map(e => expHTML(e, false)).join('')
+    : '<div class="empty-state"><div class="big">🧾</div><p>No expenses yet.<br>Add your first one!</p></div>';
+
+  el('add-list').innerHTML = sorted.length
+    ? sorted.map(e => expHTML(e, true)).join('')
+    : '<div class="empty-state"><div class="big">✨</div><p>Nothing yet — add your first expense!</p></div>';
+}
+
+function goTab(tab) {
+  ['home','add','settings'].forEach(t => {
+    el('tab-'+t).style.display = t===tab ? '' : 'none';
+    el('nav-'+t).classList.toggle('active', t===tab);
+  });
+  if (tab === 'home') renderLists();
+}
+
+function joinTab(t) {
+  document.querySelectorAll('.seg-btn').forEach((b,i) => b.classList.toggle('active', (i===0&&t==='create')||(i===1&&t==='join')));
+  el('pane-create').style.display = t==='create' ? '' : 'none';
+  el('pane-join').style.display   = t==='join'   ? '' : 'none';
+  el('join-err').textContent = '';
+}
+
+function copyCode() {
+  navigator.clipboard?.writeText(S.roomCode).catch(()=>{});
+  toast('Room code copied! Share with your partner 💚');
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────
+function init() {
+  el('loading').style.opacity = '0';
+  setTimeout(() => el('loading').style.display = 'none', 300);
+
+  // Auto-rejoin from localStorage
+  const saved = localStorage.getItem('pt-session');
+  if (saved && window._firebaseReady) {
+    try {
+      const { myName, roomCode } = JSON.parse(saved);
+      if (myName && roomCode) {
+        S.myName = myName; S.roomCode = roomCode;
+        getFS().getDoc(roomRef(roomCode)).then(snap => {
+          if (snap.exists()) {
+            const d = snap.data();
+            S.budget = d.budget; S.expenses = d.expenses||[]; S.members = d.members||{};
+            enterApp();
+          }
+        }).catch(()=>{});
+      }
+    } catch(e) {}
+  }
+}
+
+document.addEventListener('firebase-ready', init);
+setTimeout(() => { // fallback if firebase config is missing
+  if (!window._firebaseReady) {
+    el('loading').style.opacity = '0';
+    setTimeout(() => el('loading').style.display = 'none', 300);
+    el('join-err').textContent = '⚠️ Firebase not configured — fill in your config in the HTML file';
+  }
+}, 3000);
+</script>
+</body>
+</html>
